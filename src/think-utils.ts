@@ -1,12 +1,13 @@
 import { Application } from 'thinkjs'
 
 export default (app: Application) => {
-  function objToStr(obj: { [key: string]: any }): string {
+  function objToStr(obj: { [key: string]: any }, dfVal: string = ''): string {
     try {
       return JSON.stringify(obj)
     } catch (e) {
+      app.think.logger.error(`obj =====> ${obj}`)
       app.think.logger.error(e)
-      return ''
+      return dfVal
     }
   }
 
@@ -14,7 +15,7 @@ export default (app: Application) => {
     try {
       return JSON.parse(str)
     } catch (e) {
-      app.think.logger.error(str)
+      app.think.logger.error(`str =====> ${str}`)
       app.think.logger.error(e)
       return dfVal
     }
@@ -40,6 +41,12 @@ export default (app: Application) => {
   }
 }
 
+export interface IUtils {
+  objToStr(obj: object, dfVal?: string): string
+
+  strToObj(str: string, dfVal?: any): object
+}
+
 declare module 'thinkjs' {
   interface Think extends IUtils {}
 
@@ -50,10 +57,4 @@ declare module 'thinkjs' {
   interface Controller extends IUtils {
     fail(code: number, msg: string | number | object): void
   }
-}
-
-export interface IUtils {
-  objToStr(obj: object): string
-
-  strToObj(str: string, dfVal?: any): object
 }
