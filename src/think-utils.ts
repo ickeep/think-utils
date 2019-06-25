@@ -1,7 +1,23 @@
 import { Application } from 'thinkjs'
+import Axios from 'axios'
+
+export interface IResult {
+  code: number | string
+  msg: string
+  data: any
+  status?: number
+  headers?: { [key: string]: any }
+}
+
+type TMethod = 'get' | 'delete' | 'head' | 'options' | 'post' | 'put' | 'patch'
+
+export interface IMethod {
+  (url: string, data?: Object | string, conf?: Object): Promise<IResult>
+}
 
 export default (app: Application) => {
-  function objToStr(obj: { [key: string]: any }, dfVal: string = ''): string {
+  const think = app.think
+  const objToStr = (obj: { [key: string]: any }, dfVal: string = ''): string => {
     try {
       return JSON.stringify(obj)
     } catch (e) {
@@ -11,7 +27,7 @@ export default (app: Application) => {
     }
   }
 
-  function strToObj(str: string, dfVal: any = {}): object {
+  const strToObj = (str: string, dfVal: any = {}): object => {
     try {
       return JSON.parse(str)
     } catch (e) {
@@ -20,24 +36,84 @@ export default (app: Application) => {
       return dfVal
     }
   }
-
-  return {
-    think: {
-      objToStr,
-      strToObj
-    },
-    context: {
-      objToStr,
-      strToObj
-    },
-    controller: {
-      objToStr,
-      strToObj
-    },
-    service: {
-      objToStr,
-      strToObj
+  const conf = think.config('http') || {}
+  const axiox = Axios.create({
+    timeout: 30000,
+    responseType: 'json',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    ...conf
+  })
+  const AjaxFn = async function(
+    method: TMethod,
+    url: string,
+    data: object = {},
+    conf: { [key: string]: any } = {}
+  ): Promise<IResult> {
+    // @ts-ignore
+    const fn = axiox[method]
+    let result: IResult = { code: 1, msg: '', data: '' }
+    let ajaxResult
+    try {
+      if (['get', 'delete', 'head', 'options'].indexOf(method) >= 0) {
+        ajaxResult = await fn(url, { ...conf, params: data })
+      } else {
+        ajaxResult = await fn(url, conf, data)
+      }
+    } catch (e) {
+      if (!e.response) {
+        result.msg = e.message
+        result.code = 600 // 网络错误
+        result.status = 600 // 网络错误
+        return result
+      } else {
+        const { status, statusText, headers, data = {} } = e.response
+        result.code = (data && data.code) || status
+        result.msg = (data && data.msg) || statusText
+        result.headers = headers
+        result.status = status
+      }
+      return result
     }
+    return ajaxResult
+  }
+
+  const httpGet: IMethod = async function(url, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('get', url, data, conf)
+  }
+  const httpPost: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('post', url, data, conf)
+  }
+  const httpPatch: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('patch', url, data, conf)
+  }
+  const httpPut: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('put', url, data, conf)
+  }
+  const httpDel: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('delete', url, data, conf)
+  }
+  const httpHead: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('head', url, data, conf)
+  }
+  const httpOptions: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
+    return AjaxFn('options', url, data, conf)
+  }
+  const fn = {
+    objToStr,
+    strToObj,
+    httpGet,
+    httpPost,
+    httpPatch,
+    httpPut,
+    httpDel,
+    httpHead,
+    httpOptions
+  }
+  return {
+    think: fn,
+    context: fn,
+    controller: fn,
+    service: fn
   }
 }
 
@@ -45,6 +121,14 @@ export interface IUtils {
   objToStr(obj: object, dfVal?: string): string
 
   strToObj(str: string, dfVal?: any): object
+
+  httpGet: IMethod
+  httpPost: IMethod
+  httpPatch: IMethod
+  httpPut: IMethod
+  httpDel: IMethod
+  httpHead: IMethod
+  httpOptions: IMethod
 }
 
 declare module 'thinkjs' {
