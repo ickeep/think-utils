@@ -57,7 +57,7 @@ export default (app: Application) => {
       if (['get', 'delete', 'head', 'options'].indexOf(method) >= 0) {
         ajaxResult = await fn(url, { ...conf, params: data })
       } else {
-        ajaxResult = await fn(url, data, { params: data, ...conf })
+        ajaxResult = await fn(url, data, conf)
       }
     } catch (e) {
       if (!e.response) {
