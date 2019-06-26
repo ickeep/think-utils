@@ -1,5 +1,6 @@
 import { Application } from 'thinkjs'
 import Axios from 'axios'
+import Querystring from 'querystring'
 
 export interface IResult {
   code: number | string
@@ -57,7 +58,15 @@ export default (app: Application) => {
       if (['get', 'delete', 'head', 'options'].indexOf(method) >= 0) {
         ajaxResult = await fn(url, { ...conf, params: data })
       } else {
-        ajaxResult = await fn(url, data, conf)
+        const { headers = {} } = conf
+        if (
+          headers['Content-Type'] === 'application/x-www-form-urlencoded' ||
+          headers['content-type'] === 'application/x-www-form-urlencoded'
+        ) {
+          ajaxResult = await fn(url, Querystring.stringify(data), conf)
+        } else {
+          ajaxResult = await fn(url, data, conf)
+        }
       }
     } catch (e) {
       if (!e.response) {
