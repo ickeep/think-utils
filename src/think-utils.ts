@@ -4,8 +4,8 @@ import Querystring from 'querystring'
 
 export interface IResult {
   code: number | string
-  msg: string
-  data: any
+  msg?: string
+  data?: any
   status?: number
   headers?: { [key: string]: any }
 }
