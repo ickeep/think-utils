@@ -1,4 +1,4 @@
-import { Application } from 'thinkjs'
+import { Application, Controller } from 'thinkjs'
 import Axios from 'axios'
 import Querystring from 'querystring'
 
@@ -37,6 +37,7 @@ export default (app: Application) => {
       return dfVal
     }
   }
+
   const conf = think.config('http') || {}
   const axiox = Axios.create({
     timeout: 30000,
@@ -118,10 +119,26 @@ export default (app: Application) => {
     httpHead,
     httpOptions
   }
+  const errCodeConf = think.config('errCode') || {}
+  const validateCode = think.config('validateDefaultErrno')
+  const controller: any = {
+    ...fn,
+    validateFail(msg?: any, data?: any) {
+      return this.fail(validateCode, msg, data)
+    },
+    handleResult(opt: IResult) {
+      const { code, msg, data = '' } = opt
+      if (code !== 0) {
+        return this.fail(code, msg ? msg : errCodeConf[code] || '', data)
+      } else {
+        return this.success(data)
+      }
+    }
+  }
   return {
     think: fn,
     context: fn,
-    controller: fn,
+    controller,
     service: fn
   }
 }
@@ -149,5 +166,9 @@ declare module 'thinkjs' {
 
   interface Controller extends IUtils {
     fail(code: number, msg: string | number | object): void
+
+    validateFail(msg?: string | { [key: string]: any }, data?: any): any
+
+    handleResult(opt: IResult): any
   }
 }
