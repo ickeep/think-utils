@@ -69,6 +69,9 @@ export default (app: Application) => {
           ajaxResult = await fn(url, data, conf)
         }
       }
+      if (typeof ajaxResult.code === 'undefined' && ajaxResult.status === 200) {
+        ajaxResult.code = 0
+      }
     } catch (e) {
       if (!e.response) {
         result.msg = e.message
