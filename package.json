@@ -1,6 +1,6 @@
 {
   "name": "think-utils",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "",
   "keywords": [],
   "main": "dist/think-utils.umd.js",
@@ -113,6 +113,7 @@
     "semantic-release": "^15.9.16",
     "shelljs": "^0.8.3",
     "thinkjs": "^3.2.10",
+    "thinkjs3-ts": "^1.0.1",
     "travis-deploy-once": "^5.0.9",
     "ts-jest": "^23.10.2",
     "ts-node": "^7.0.1",

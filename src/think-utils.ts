@@ -1,4 +1,4 @@
-import { Application, Controller } from 'thinkjs'
+import { Application, Controller, think } from 'thinkjs'
 import Axios from 'axios'
 import Querystring from 'querystring'
 
@@ -125,17 +125,54 @@ export default (app: Application) => {
   }
   const errCodeConf = think.config('errCode') || {}
   const validateCode = think.config('validateDefaultErrno')
+
+  const codeKey = think.config('errnoField')
+  const msgKey = think.config('errmsgField')
   const controller: any = {
     ...fn,
+    fail(code: number, msg: string | object = '', data: any = '') {
+      const tmpObj: any = {}
+      tmpObj[codeKey] = code
+      const msgLangConf = think.config('msgLang')
+      if (msgLangConf) {
+        const {
+          dfLang = 'zh_CN',
+          mapKey = 'msgLangMap',
+          headerKey = 'accept-language'
+        } = msgLangConf
+        const lang = this.header(headerKey) || dfLang
+        const msgLangMap = think.config(mapKey)
+        if (typeof msg === 'object') {
+          const tmpMsgObj: { [key: string]: any } = {}
+          Object.keys(msg).forEach((key: string) => {
+            // @ts-ignore
+            const tmpMsgMap = msgLangMap[msg[key]] || {}
+            // @ts-ignore
+            tmpMsgObj[key] = tmpMsgMap[lang] || tmpMsgMap[dfLang] || msg[key]
+          })
+          tmpObj[msgKey] = tmpMsgObj
+        } else {
+          const msgMap = (msg && msgLangMap[msg]) || msgLangMap[code] || {}
+          tmpObj[msgKey] = msgMap[lang] || msgMap[dfLang] || msg || ''
+        }
+      } else {
+        tmpObj[msgKey] = msg ? msg : errCodeConf[code] || ''
+      }
+      tmpObj.data = data
+      return this.json(tmpObj)
+    },
+    success(data: any, msg?: string | object) {
+      return this.fail(0, msg, data)
+    },
     validateFail(msg?: any, data?: any) {
       return this.fail(validateCode, msg, data)
     },
     handleResult(opt: IResult) {
-      const { code, msg, data = '' } = opt
+      const { code, msg = '', data = '' } = opt
       if (code !== 0) {
-        return this.fail(code, msg ? msg : errCodeConf[code] || '', data)
+        return this.fail(code, msg, data)
       } else {
-        return this.success(data)
+        return this.success(data, msg)
       }
     }
   }
@@ -174,5 +211,25 @@ declare module 'thinkjs' {
     validateFail(msg?: string | { [key: string]: any }, data?: any): any
 
     handleResult(opt: IResult): any
+  }
+}
+
+export async function loadMsgLang() {
+  const serviceName = think.config('serviceName')
+  const msgLangConf = think.config('msgLang')
+  if (msgLangConf) {
+    const { db = 'base', table = 'msg_lang', mapKey = 'msgLangMap' } = msgLangConf
+    // @ts-ignore
+    const msgLangRows = await think
+      .model(table, db)
+      .where()
+      .select({ service: ['in', `${serviceName},common`] })
+    const msgLangMap: { [key: string]: any } = {}
+    msgLangRows.forEach((item: any) => {
+      const { code, key, server, ...args } = item
+      msgLangMap[key] = args
+    })
+    // @ts-ignore
+    think.config(mapKey, msgLangMap)
   }
 }
