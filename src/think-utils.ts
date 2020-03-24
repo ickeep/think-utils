@@ -245,8 +245,8 @@ declare module 'thinkjs' {
   interface Controller extends IUtils {
     fail(
       code: number,
-      msg: string | number | object,
-      data: any,
+      msg?: string | number | object,
+      data?: any,
       params?: { [key: string]: string | number }
     ): void
 
