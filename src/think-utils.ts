@@ -246,6 +246,7 @@ declare module 'thinkjs' {
     fail(
       code: number,
       msg: string | number | object,
+      data: any,
       params?: { [key: string]: string | number }
     ): void
 
