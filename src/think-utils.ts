@@ -268,8 +268,8 @@ export async function loadMsgLang() {
   const msgLangConf = think.config('msgLang')
   if (msgLangConf) {
     const { db = 'base', table = 'msg_lang', mapKey = 'msgLangMap' } = msgLangConf
-    // @ts-ignore
     const msgLangRows = await think
+      // @ts-ignore
       .model(table, db)
       .where({ service: ['in', `${serviceName},common`] })
       .select()
