@@ -1,4 +1,4 @@
-import { Application, Controller, think } from 'thinkjs'
+import { Application, Controller, Logic, think } from 'thinkjs'
 import Axios from 'axios'
 import Querystring from 'querystring'
 
@@ -112,6 +112,15 @@ export default (app: Application) => {
   const httpOptions: IMethod = async function(url: string, data: Object = {}, conf: Object = {}) {
     return AjaxFn('options', url, data, conf)
   }
+  const template = function(text: string, params: { [key: string]: string | number }) {
+    return text.replace(/<%([\w_-])+%>/g, function(match) {
+      const matchKey = ((match.slice && match.slice(2, -2)) || '').trim()
+      return (
+        (matchKey ? (typeof params[matchKey] === 'undefined' ? matchKey : params[matchKey]) : '') +
+        ''
+      )
+    })
+  }
   const fn = {
     objToStr,
     strToObj,
@@ -121,58 +130,85 @@ export default (app: Application) => {
     httpPut,
     httpDel,
     httpHead,
-    httpOptions
+    httpOptions,
+    template
   }
-  const errCodeConf = think.config('errCode') || {}
-  const validateCode = think.config('validateDefaultErrno')
 
-  const codeKey = think.config('errnoField')
-  const msgKey = think.config('errmsgField')
   const controller: any = {
     ...fn,
-    fail(code: number, msg: string | object = '', data: any = '') {
+    getMsgLang(
+      msg: number | string | { [key: string]: any },
+      params?: { [key: string]: string | number }
+    ) {
+      const msgLangConf = think.config('msgLang')
+      if (!msgLangConf) {
+        if (params) {
+          if (typeof msg === 'string') {
+            return this.template(msg, params)
+          }
+          if (typeof msg === 'object') {
+            const tmpObj: { [key: string]: any } = {}
+            Object.keys(msg).forEach((key: string) => {
+              tmpObj[key] =
+                typeof msg[key] === 'string' ? this.template(msg[key], params) : msg[key]
+            })
+            return tmpObj
+          }
+        }
+        return typeof msg === 'number' ? '' : msg
+      }
+      const { dfLang = 'zh_CN', mapKey = 'msgLangMap', headerKey = 'accept-language' } = msgLangConf
+      const lang = this.header(headerKey) || dfLang
+      const msgLangMap = think.config(mapKey)
+      if (typeof msg === 'object') {
+        const tmpMsgObj: { [key: string]: any } = {}
+        Object.keys(msg).forEach((key: string) => {
+          // @ts-ignore
+          const tmpMsgMap = msgLangMap[msg[key]] || {}
+          // @ts-ignore
+          tmpMsgObj[key] = tmpMsgMap[lang] || tmpMsgMap[dfLang] || msg[key]
+          if (typeof tmpMsgObj[key] === 'string' && params) {
+            tmpMsgObj[key] = this.template(tmpMsgObj[key], params)
+          }
+        })
+        return tmpMsgObj
+      }
+      const msgMap = (msg && msgLangMap[msg]) || {}
+      let tmpMsg = msgMap[lang] || msgMap[dfLang] || msg || ''
+      if (typeof tmpMsg === 'string' && params) {
+        tmpMsg = this.template(tmpMsg, params)
+      }
+      return tmpMsg
+    },
+    fail(
+      code: number,
+      msg: string | object = '',
+      data: any = '',
+      params?: { [key: string]: string | number }
+    ) {
+      const codeKey = think.config('errnoField')
+      const msgKey = think.config('errmsgField')
       const tmpObj: any = {}
       tmpObj[codeKey] = code
-      const msgLangConf = think.config('msgLang')
-      if (msgLangConf) {
-        const {
-          dfLang = 'zh_CN',
-          mapKey = 'msgLangMap',
-          headerKey = 'accept-language'
-        } = msgLangConf
-        const lang = this.header(headerKey) || dfLang
-        const msgLangMap = think.config(mapKey)
-        if (typeof msg === 'object') {
-          const tmpMsgObj: { [key: string]: any } = {}
-          Object.keys(msg).forEach((key: string) => {
-            // @ts-ignore
-            const tmpMsgMap = msgLangMap[msg[key]] || {}
-            // @ts-ignore
-            tmpMsgObj[key] = tmpMsgMap[lang] || tmpMsgMap[dfLang] || msg[key]
-          })
-          tmpObj[msgKey] = tmpMsgObj
-        } else {
-          const msgMap = (msg && msgLangMap[msg]) || msgLangMap[code] || {}
-          tmpObj[msgKey] = msgMap[lang] || msgMap[dfLang] || msg || ''
-        }
-      } else {
-        tmpObj[msgKey] = msg ? msg : errCodeConf[code] || ''
-      }
+
+      tmpObj[msgKey] = this.getMsgLang(msg || code, params)
+
       tmpObj.data = data
       return this.json(tmpObj)
     },
-    success(data: any, msg?: string | object) {
-      return this.fail(0, msg, data)
+    success(data: any, msg?: string | object, params?: { [key: string]: string | number }) {
+      return this.fail(0, msg, data, params)
     },
-    validateFail(msg?: any, data?: any) {
-      return this.fail(validateCode, msg, data)
+    validateFail(msg?: any, data?: any, params?: { [key: string]: string | number }) {
+      const validateCode = think.config('validateDefaultErrno')
+      return this.fail(validateCode, msg, data, params)
     },
-    handleResult(opt: IResult) {
+    handleResult(opt: IResult, params?: { [key: string]: string | number }) {
       const { code, msg = '', data = '' } = opt
       if (code !== 0) {
-        return this.fail(code, msg, data)
+        return this.fail(code, msg, data, params)
       } else {
-        return this.success(data, msg)
+        return this.success(data, msg, params)
       }
     }
   }
@@ -180,6 +216,7 @@ export default (app: Application) => {
     think: fn,
     context: fn,
     controller,
+    logic: controller,
     service: fn
   }
 }
@@ -206,12 +243,24 @@ declare module 'thinkjs' {
   interface Service extends IUtils {}
 
   interface Controller extends IUtils {
-    fail(code: number, msg: string | number | object): void
+    fail(
+      code: number,
+      msg: string | number | object,
+      params?: { [key: string]: string | number }
+    ): void
 
-    validateFail(msg?: string | { [key: string]: any }, data?: any): any
+    success(data: any, msg?: string | object, params?: { [key: string]: string | number }): void
 
-    handleResult(opt: IResult): any
+    validateFail(
+      msg?: string | { [key: string]: any },
+      data?: any,
+      params?: { [key: string]: string | number }
+    ): any
+
+    handleResult(opt: IResult, params?: { [key: string]: string | number }): any
   }
+
+  interface Logic extends Controller {}
 }
 
 export async function loadMsgLang() {
