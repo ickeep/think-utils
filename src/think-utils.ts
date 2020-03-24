@@ -271,11 +271,11 @@ export async function loadMsgLang() {
     // @ts-ignore
     const msgLangRows = await think
       .model(table, db)
-      .where()
-      .select({ service: ['in', `${serviceName},common`] })
+      .where({ service: ['in', `${serviceName},common`] })
+      .select()
     const msgLangMap: { [key: string]: any } = {}
     msgLangRows.forEach((item: any) => {
-      const { code, key, server, ...args } = item
+      const { key, server, ...args } = item
       msgLangMap[key] = args
     })
     // @ts-ignore
