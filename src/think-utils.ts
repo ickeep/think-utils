@@ -158,7 +158,10 @@ export default (app: Application) => {
         return typeof msg === 'number' ? '' : msg
       }
       const { dfLang = 'zh_CN', mapKey = 'msgLangMap', headerKey = 'accept-language' } = msgLangConf
-      const lang = this.header(headerKey) || dfLang
+      const lang =
+        (typeof this.header === 'function'
+          ? this.header(headerKey)
+          : this.headers && this.headers[headerKey]) || dfLang
       const msgLangMap = think.config(mapKey)
       if (typeof msg === 'object') {
         const tmpMsgObj: { [key: string]: any } = {}
@@ -174,7 +177,7 @@ export default (app: Application) => {
         return tmpMsgObj
       }
       const msgMap = (msg && msgLangMap[msg]) || {}
-      let tmpMsg = msgMap[lang] || msgMap[dfLang] || msg || ''
+      let tmpMsg = msgMap[lang] || msgMap[dfLang] || (typeof msg === 'number' ? '' : msg) || ''
       if (typeof tmpMsg === 'string' && params) {
         tmpMsg = this.template(tmpMsg, params)
       }
@@ -214,7 +217,7 @@ export default (app: Application) => {
   }
   return {
     think: fn,
-    context: fn,
+    context: controller,
     controller,
     logic: controller,
     service: fn
